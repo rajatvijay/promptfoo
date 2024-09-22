@@ -1,7 +1,7 @@
 import compression from 'compression';
 import cors from 'cors';
 import debounce from 'debounce';
-import { eq, and, desc, type SQL } from 'drizzle-orm';
+import { eq, and, type SQL } from 'drizzle-orm';
 import express from 'express';
 import type { Stats } from 'fs';
 import fs from 'fs';
@@ -43,9 +43,6 @@ import {
 
 // Running jobs
 const evalJobs = new Map<string, Job>();
-
-// Prompts cache
-let allPrompts: PromptWithMetadata[] | null = null;
 
 export enum BrowserBehavior {
   ASK = 0,
