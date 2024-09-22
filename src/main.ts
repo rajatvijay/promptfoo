@@ -12,6 +12,7 @@ import { generateDatasetCommand } from './commands/generate/dataset';
 import { importCommand } from './commands/import';
 import { initCommand } from './commands/init';
 import { listCommand } from './commands/list';
+import { pushCommand } from './commands/push';
 import { shareCommand } from './commands/share';
 import { showCommand } from './commands/show';
 import { versionCommand } from './commands/version';
@@ -64,6 +65,7 @@ async function main() {
   importCommand(program);
   initCommand(program);
   listCommand(program);
+  pushCommand(program); // Add this line
   shareCommand(program);
   showCommand(program);
   versionCommand(program);
