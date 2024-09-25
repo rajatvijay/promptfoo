@@ -9,6 +9,7 @@ import type {
   ProviderResponse,
 } from '../types';
 import { maybeLoadFromExternalFile } from '../util';
+import { executeExternalScript } from '../util/externalScript';
 import { safeJsonStringify } from '../util/json';
 import { getNunjucksEngine } from '../util/templates';
 import { REQUEST_TIMEOUT_MS } from './shared';
@@ -25,53 +26,44 @@ interface HttpProviderConfig {
   request?: string;
 }
 
-function createResponseParser(parser: any): (data: any, text: string) => ProviderResponse {
+async function createResponseParser(
+  parser: any,
+): Promise<(data: any, text: string) => ProviderResponse | Promise<ProviderResponse>> {
   if (typeof parser === 'function') {
     return parser;
   }
   if (typeof parser === 'string') {
-    const func = maybeLoadFromExternalFile(parser);
-    if (typeof func === 'function') {
-      return func;
-    } else if (typeof func === 'string') {
+    if (parser.startsWith('file://')) {
       try {
-        const parsedFunc = JSON.parse(func);
-        if (parsedFunc.responseParser) {
-          return new Function('json', 'text', parsedFunc.responseParser) as (
-            data: any,
-            text: string,
-          ) => ProviderResponse;
-        }
-      } catch (error) {
-        logger.warn(`Error parsing func as JSON: ${error}`);
-        try {
-          const moduleExports = new Function('module', 'exports', func);
-          const module = { exports: {} };
-          moduleExports(module, module.exports);
-          if (
-            typeof (
-              module.exports as { responseParser?: (data: any, text: string) => ProviderResponse }
-            ).responseParser === 'function'
-          ) {
-            return (
-              module.exports as { responseParser: (data: any, text: string) => ProviderResponse }
-            ).responseParser;
+        return async (json: any, text: string) => {
+          const externalParser = await executeExternalScript(
+            parser,
+            json,
+            text,
+            'get_response_parser',
+          );
+          if (typeof externalParser === 'function') {
+            return externalParser(json, text);
+          } else if (externalParser === null) {
+            throw new Error(
+              `External parser ${parser} did not return a function or a valid response object`,
+            );
+          } else {
+            return externalParser as ProviderResponse;
           }
-        } catch (moduleError) {
-          logger.warn(`Error parsing func as module: ${moduleError}`);
-        }
+        };
+      } catch (error) {
+        logger.warn(`Error loading external parser: ${error}`);
+        throw error;
       }
-    } else if (func.responseParser) {
-      return new Function('json', 'text', func.responseParser) as (
-        data: any,
-        text: string,
-      ) => ProviderResponse;
     }
+    // If it's not a file path, create a function from the string
     return new Function('json', 'text', `return ${parser}`) as (
       data: any,
       text: string,
     ) => ProviderResponse;
   }
+  // Default parser if no valid parser is provided
   return (data, text) => ({ output: data || text });
 }
 
@@ -131,12 +123,15 @@ function parseRawRequest(input: string) {
 export class HttpProvider implements ApiProvider {
   url: string;
   config: HttpProviderConfig;
-  responseParser: (data: any, text: string) => ProviderResponse;
+  private responseParserPromise: Promise<
+    (data: any, text: string) => ProviderResponse | Promise<ProviderResponse>
+  >;
 
   constructor(url: string, options: ProviderOptions) {
     this.config = options.config;
     this.url = this.config.url || url;
-    this.responseParser = createResponseParser(this.config.responseParser);
+
+    this.responseParserPromise = createResponseParser(this.config.responseParser);
 
     if (this.config.request) {
       this.config.request = maybeLoadFromExternalFile(this.config.request) as string;
@@ -225,11 +220,13 @@ export class HttpProvider implements ApiProvider {
     }
     logger.debug(`\tHTTP response: ${response.data}`);
 
+    const responseParser = await this.responseParserPromise;
+    const parsedResponse = await responseParser(
+      response.data,
+      typeof response.data === 'string' ? response.data : JSON.stringify(response.data),
+    );
     return {
-      output: this.responseParser(
-        response.data,
-        typeof response.data === 'string' ? response.data : JSON.stringify(response.data),
-      ),
+      output: parsedResponse,
     };
   }
 
@@ -269,11 +266,13 @@ export class HttpProvider implements ApiProvider {
     }
     logger.debug(`\tHTTP response: ${response.data}`);
 
+    const responseParser = await this.responseParserPromise;
+    const parsedResponse = await responseParser(
+      response.data,
+      typeof response.data === 'string' ? response.data : JSON.stringify(response.data),
+    );
     return {
-      output: this.responseParser(
-        response.data,
-        typeof response.data === 'string' ? response.data : JSON.stringify(response.data),
-      ),
+      output: parsedResponse,
     };
   }
 }
