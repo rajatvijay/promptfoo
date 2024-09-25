@@ -9,13 +9,10 @@ import * as rouge from 'js-rouge';
 import yaml from 'js-yaml';
 import { type Option as sqlParserOption } from 'node-sql-parser';
 import util from 'node:util';
-import path from 'path';
 import Clone from 'rfdc';
 import invariant from 'tiny-invariant';
 import { AssertionsResult } from './assertions/AssertionsResult';
-import cliState from './cliState';
 import { getEnvBool, getEnvInt } from './envars';
-import { importModule } from './esm';
 import { fetchWithRetries } from './fetch';
 import logger from './logger';
 import {
@@ -34,7 +31,6 @@ import {
 import type { OpenAiChatCompletionProvider } from './providers/openai';
 import { validateFunctionCall } from './providers/openaiUtil';
 import { parseChatPrompt } from './providers/shared';
-import { runPython } from './python/pythonUtils';
 import { runPythonCode } from './python/wrapper';
 import { getGraderById } from './redteam/graders';
 import telemetry from './telemetry';
@@ -48,7 +44,7 @@ import {
   type TestCase,
   isGradingResult,
 } from './types';
-import { isJavascriptFile } from './util';
+import { executeExternalScript } from './util/externalScript';
 import { extractJsonObjects } from './util/json';
 import { getNunjucksEngine } from './util/templates';
 import { transform } from './util/transform';
@@ -321,45 +317,16 @@ export async function runAssertion({
   let valueFromScript: string | boolean | number | GradingResult | object | undefined;
   if (typeof renderedValue === 'string') {
     if (renderedValue.startsWith('file://')) {
-      const basePath = cliState.basePath || '';
-      const filePath = path.resolve(basePath, renderedValue.slice('file://'.length));
-
-      if (isJavascriptFile(filePath)) {
-        const requiredModule = await importModule(filePath);
-        if (typeof requiredModule === 'function') {
-          valueFromScript = await Promise.resolve(requiredModule(output, context));
-        } else if (requiredModule.default && typeof requiredModule.default === 'function') {
-          valueFromScript = await Promise.resolve(requiredModule.default(output, context));
-        } else {
-          throw new Error(
-            `Assertion malformed: ${filePath} must export a function or have a default export as a function`,
-          );
-        }
-        logger.debug(`Javascript script ${filePath} output: ${valueFromScript}`);
-      } else if (filePath.endsWith('.py')) {
-        try {
-          const pythonScriptOutput = await runPython(filePath, 'get_assert', [output, context]);
-          valueFromScript = pythonScriptOutput;
-          logger.debug(`Python script ${filePath} output: ${valueFromScript}`);
-        } catch (error) {
-          return {
-            pass: false,
-            score: 0,
-            reason: (error as Error).message,
-            assertion,
-          };
-        }
-      } else if (filePath.endsWith('.json')) {
-        renderedValue = JSON.parse(fs.readFileSync(path.resolve(basePath, filePath), 'utf8'));
-      } else if (filePath.endsWith('.yaml') || filePath.endsWith('.yml')) {
-        renderedValue = yaml.load(
-          fs.readFileSync(path.resolve(basePath, filePath), 'utf8'),
-        ) as object;
-      } else if (filePath.endsWith('.txt')) {
-        // Trim to remove trailing newline
-        renderedValue = fs.readFileSync(path.resolve(basePath, filePath), 'utf8').trim();
-      } else {
-        throw new Error(`Unsupported file type: ${filePath}`);
+      try {
+        valueFromScript = await executeExternalScript(renderedValue, output, context, 'get_assert');
+        logger.debug(`Script ${renderedValue} output: ${valueFromScript}`);
+      } catch (error) {
+        return {
+          pass: false,
+          score: 0,
+          reason: (error as Error).message,
+          assertion,
+        };
       }
     } else {
       // It's a normal string value
