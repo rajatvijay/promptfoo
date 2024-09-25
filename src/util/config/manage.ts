@@ -24,11 +24,19 @@ export function writePromptfooConfig(config: Partial<UnifiedConfig>, outputPath:
   const orderedConfig = orderKeys(config, [
     'description',
     'prompts',
+    'targets',
     'providers',
     'redteam',
     'defaultTest',
     'tests',
     'scenarios',
-  ]);
+  ] as (keyof UnifiedConfig)[]);
   fs.writeFileSync(outputPath, yaml.dump(orderedConfig, { skipInvalid: true }));
+}
+
+export function writeTests(tests: UnifiedConfig['tests'], outputPath: string) {
+  if (!tests) {
+    throw new Error('No tests provided');
+  }
+  fs.writeFileSync(outputPath, yaml.dump(tests, { skipInvalid: true }));
 }

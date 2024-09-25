@@ -30,6 +30,43 @@ function createResponseParser(parser: any): (data: any, text: string) => Provide
     return parser;
   }
   if (typeof parser === 'string') {
+    const func = maybeLoadFromExternalFile(parser);
+    if (typeof func === 'function') {
+      return func;
+    } else if (typeof func === 'string') {
+      try {
+        const parsedFunc = JSON.parse(func);
+        if (parsedFunc.responseParser) {
+          return new Function('json', 'text', parsedFunc.responseParser) as (
+            data: any,
+            text: string,
+          ) => ProviderResponse;
+        }
+      } catch (error) {
+        logger.warn(`Error parsing func as JSON: ${error}`);
+        try {
+          const moduleExports = new Function('module', 'exports', func);
+          const module = { exports: {} };
+          moduleExports(module, module.exports);
+          if (
+            typeof (
+              module.exports as { responseParser?: (data: any, text: string) => ProviderResponse }
+            ).responseParser === 'function'
+          ) {
+            return (
+              module.exports as { responseParser: (data: any, text: string) => ProviderResponse }
+            ).responseParser;
+          }
+        } catch (moduleError) {
+          logger.warn(`Error parsing func as module: ${moduleError}`);
+        }
+      }
+    } else if (func.responseParser) {
+      return new Function('json', 'text', func.responseParser) as (
+        data: any,
+        text: string,
+      ) => ProviderResponse;
+    }
     return new Function('json', 'text', `return ${parser}`) as (
       data: any,
       text: string,
@@ -127,6 +164,10 @@ export class HttpProvider implements ApiProvider {
       prompt,
     };
 
+    logger.warn(
+      `Calling HTTP provider: ${this.url} with config: ${safeJsonStringify(this.config)}`,
+    );
+
     if (this.config.request) {
       return this.callApiWithRawRequest(vars);
     }
@@ -164,7 +205,7 @@ export class HttpProvider implements ApiProvider {
       url = `${url}?${queryString}`;
     }
 
-    logger.debug(`Calling HTTP provider: ${url} with config: ${safeJsonStringify(renderedConfig)}`);
+    logger.warn(`Calling HTTP provider: ${url} with config: ${safeJsonStringify(renderedConfig)}`);
     let response;
     try {
       response = await fetchWithCache(
@@ -206,6 +247,9 @@ export class HttpProvider implements ApiProvider {
     logger.debug(`Calling HTTP provider with raw request: ${url}`);
     let response;
     try {
+      logger.warn(
+        `Calling HTTP provider with raw request: ${url} and headers: ${safeJsonStringify(parsedRequest.headers)}`,
+      );
       response = await fetchWithCache(
         url,
         {
@@ -216,7 +260,9 @@ export class HttpProvider implements ApiProvider {
         REQUEST_TIMEOUT_MS,
         'text',
       );
+      logger.warn(`HTTP response: ${response.data}`);
     } catch (err) {
+      logger.error(`HTTP call error: ${String(err)}`);
       return {
         error: `HTTP call error: ${String(err)}`,
       };

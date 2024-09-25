@@ -14,7 +14,7 @@ import telemetry from '../../telemetry';
 import type { TestSuite, UnifiedConfig } from '../../types';
 import { printBorder, setupEnv } from '../../util';
 import { resolveConfigs } from '../../util/config/load';
-import { writePromptfooConfig } from '../../util/config/manage';
+import { writePromptfooConfig, writeTests } from '../../util/config/manage';
 import { RedteamGenerateOptionsSchema, RedteamConfigSchema } from '../../validators/redteam';
 import {
   REDTEAM_MODEL,
@@ -142,7 +142,12 @@ export async function doGenerateRedteam(options: RedteamCliGenerateOptions) {
     plugins: plugins || [],
   };
 
+  logger.warn(`cliState.basePath: ${cliState.basePath}`);
+  logger.warn(`options.output: ${options.output}`);
+  logger.warn(`configPath: ${configPath}`);
+
   if (options.output) {
+    logger.warn('using options.output');
     const existingYaml = configPath
       ? (yaml.load(fs.readFileSync(configPath, 'utf8')) as Partial<UnifiedConfig>)
       : {};
@@ -156,12 +161,19 @@ export async function doGenerateRedteam(options: RedteamCliGenerateOptions) {
           entities,
         },
       },
-      tests: redteamTests,
+      tests: 'file://redteam.yaml',
       redteam: { ...(existingYaml.redteam || {}), ...updatedRedteamConfig },
     };
-    writePromptfooConfig(updatedYaml, options.output);
+    const outputPath = cliState.basePath
+      ? path.join(cliState.basePath, options.output)
+      : options.output;
+    const redteamYamlPath = cliState.basePath
+      ? path.join(cliState.basePath, 'redteam.yaml')
+      : 'redteam.yaml';
+    writeTests(redteamTests, redteamYamlPath);
+    writePromptfooConfig(updatedYaml, path.join(path.dirname(outputPath), 'promptfooconfig.yaml'));
     printBorder();
-    const relativeOutputPath = path.relative(process.cwd(), options.output);
+    const relativeOutputPath = path.relative(process.cwd(), outputPath);
     logger.info(`Wrote ${redteamTests.length} new test cases to ${relativeOutputPath}`);
     logger.info(
       '\n' +
@@ -175,6 +187,7 @@ export async function doGenerateRedteam(options: RedteamCliGenerateOptions) {
     );
     printBorder();
   } else if (options.write && configPath) {
+    logger.warn('using options.write and configPath');
     const existingConfig = yaml.load(fs.readFileSync(configPath, 'utf8')) as Partial<UnifiedConfig>;
     existingConfig.defaultTest = {
       ...(existingConfig.defaultTest || {}),
@@ -184,9 +197,14 @@ export async function doGenerateRedteam(options: RedteamCliGenerateOptions) {
         entities,
       },
     };
-    existingConfig.tests = [...(existingConfig.tests || []), ...redteamTests];
+    const redteamYamlPath = path.join(path.dirname(configPath), 'redteam.yaml');
+    writeTests([...(existingConfig.tests || []), ...redteamTests], redteamYamlPath);
+    existingConfig.tests = 'file://redteam.yaml';
     existingConfig.redteam = { ...(existingConfig.redteam || {}), ...updatedRedteamConfig };
-    writePromptfooConfig(existingConfig, configPath);
+    writePromptfooConfig(
+      existingConfig,
+      path.join(path.dirname(configPath), 'promptfooconfig.yaml'),
+    );
     logger.info(
       `\nWrote ${redteamTests.length} new test cases to ${path.relative(process.cwd(), configPath)}`,
     );
@@ -195,7 +213,11 @@ export async function doGenerateRedteam(options: RedteamCliGenerateOptions) {
       : `promptfoo eval -c ${path.relative(process.cwd(), configPath)}`;
     logger.info('\n' + chalk.green(`Run ${chalk.bold(`${command}`)} to run the red team!`));
   } else {
-    writePromptfooConfig({ tests: redteamTests }, 'redteam.yaml');
+    logger.warn('using default');
+    const outputPath = cliState.basePath
+      ? path.join(cliState.basePath, 'redteam.yaml')
+      : 'redteam.yaml';
+    writeTests(redteamTests, outputPath);
   }
 
   telemetry.record('command_used', {
