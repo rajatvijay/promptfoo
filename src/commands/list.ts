@@ -5,7 +5,8 @@ import fetch from 'node-fetch';
 import logger from '../logger';
 import { wrapTable } from '../table';
 import telemetry from '../telemetry';
-import { getEvals, getPrompts, getTestCases, printBorder, setupEnv, sha256 } from '../util';
+import { getEvals, getPrompts, getTestCases, printBorder, setupEnv } from '../util';
+import { sha256 } from '../util/createHash';
 
 export function listCommand(program: Command) {
   const listCommand = program.command('list').description('List various resources');

@@ -12,6 +12,7 @@ import opener from 'opener';
 import { Server as SocketIOServer } from 'socket.io';
 import invariant from 'tiny-invariant';
 import { v4 as uuidv4 } from 'uuid';
+import { createPublicUrl } from '../commands/share';
 import { getDbSignalPath } from '../database';
 import { getDb } from '../database';
 import { prompts, promptLabels } from '../database/tables';
@@ -48,6 +49,7 @@ export enum BrowserBehavior {
   ASK = 0,
   OPEN = 1,
   SKIP = 2,
+  OPEN_TO_REPORT = 3,
 }
 
 export function startServer(
@@ -274,10 +276,13 @@ export function startServer(
   });
 
   app.get('/api/progress', async (req, res) => {
-    const { tagName, tagValue } = req.query;
+    const { tagName, tagValue, description } = req.query;
     const tag =
       tagName && tagValue ? { key: tagName as string, value: tagValue as string } : undefined;
-    const results = await getStandaloneEvals({ tag });
+    const results = await getStandaloneEvals({
+      tag,
+      description: description as string | undefined,
+    });
     res.json({
       data: results,
     });
@@ -293,17 +298,26 @@ export function startServer(
     res.json({ data: await getTestCases() });
   });
 
+  app.post('/api/results/share', async (req, res) => {
+    const { id } = req.body;
+
+    const result = await readResult(id);
+    if (!result) {
+      res.status(404).json({ error: 'Eval not found' });
+      return;
+    }
+    const url = await createPublicUrl(result.result, true);
+    res.json({ url });
+  });
+
   app.post('/api/dataset/generate', async (req, res) => {
     const testSuite: TestSuite = {
       prompts: req.body.prompts as Prompt[],
       tests: req.body.tests as TestCase[],
       providers: [],
     };
-
     const results = await synthesizeFromTestSuite(testSuite, {});
-    return {
-      results,
-    };
+    res.json({ results });
   });
 
   // Must come after the above routes (particularly /api/config) so it doesn't
@@ -323,13 +337,20 @@ export function startServer(
       const openUrl = async () => {
         try {
           logger.info('Press Ctrl+C to stop the server');
-          await opener(url);
+          if (browserBehavior === BrowserBehavior.OPEN_TO_REPORT) {
+            await opener(`${url}/report`);
+          } else {
+            await opener(url);
+          }
         } catch (err) {
           logger.error(`Failed to open browser: ${String(err)}`);
         }
       };
 
-      if (browserBehavior === BrowserBehavior.OPEN) {
+      if (
+        browserBehavior === BrowserBehavior.OPEN ||
+        browserBehavior === BrowserBehavior.OPEN_TO_REPORT
+      ) {
         openUrl();
       } else if (browserBehavior === BrowserBehavior.ASK) {
         const rl = readline.createInterface({

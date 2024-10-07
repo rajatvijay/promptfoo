@@ -1,5 +1,6 @@
 import Cal, { getCalApi } from '@calcom/embed-react';
 import React, { useEffect, useState } from 'react';
+import { useColorMode } from '@docusaurus/theme-common';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Container from '@mui/material/Container';
@@ -12,6 +13,7 @@ import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
 import Layout from '@theme/Layout';
 import styles from './contact.module.css';
 
@@ -60,17 +62,36 @@ function TabPanel(props: TabPanelProps) {
   );
 }
 
-export default function Contact(): JSX.Element {
+function Contact(): JSX.Element {
+  const isDarkTheme = useColorMode().colorMode === 'dark';
   const [tabValue, setTabValue] = useState(0);
+
+  const theme = React.useMemo(
+    () =>
+      createTheme({
+        palette: {
+          mode: isDarkTheme ? 'dark' : 'light',
+        },
+      }),
+    [isDarkTheme],
+  );
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
 
   return (
-    <Layout title="Contact Us" description="Schedule a meeting with the promptfoo team">
+    <ThemeProvider theme={theme}>
       <Container maxWidth="md">
-        <Box sx={{ my: 4, textAlign: 'center' }}>
+        <Box
+          sx={{
+            my: 4,
+            textAlign: 'center',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
           <Typography variant="h3" gutterBottom>
             Chat with us
           </Typography>
@@ -165,13 +186,21 @@ export default function Contact(): JSX.Element {
                 required
                 margin="normal"
               />
-              <Button type="submit" variant="contained" color="primary" sx={{ mt: 2 }}>
+              <Button type="submit" variant="contained" color="primary" sx={{ mt: 6 }}>
                 Send
               </Button>
             </form>
           </TabPanel>
         </Box>
       </Container>
+    </ThemeProvider>
+  );
+}
+
+export default function Page(): JSX.Element {
+  return (
+    <Layout title="Contact Us" description="Schedule a meeting with the promptfoo team">
+      <Contact />
     </Layout>
   );
 }
