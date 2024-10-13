@@ -1,8 +1,9 @@
 import type { Cache } from 'cache-manager';
 import fetch from 'node-fetch';
 import Replicate from 'replicate';
+import invariant from 'tiny-invariant';
 import { getCache, isCacheEnabled } from '../cache';
-import { getEnvString, getEnvFloat, getEnvInt } from '../envars';
+import { getEnvString } from '../envars';
 import logger from '../logger';
 import type {
   ApiModerationProvider,
@@ -16,7 +17,6 @@ import type {
 } from '../types';
 import { safeJsonStringify } from '../util/json';
 import { parseChatPrompt } from './shared';
-import invariant from 'tiny-invariant';
 
 interface ReplicateCompletionOptions {
   apiKey?: string;
@@ -43,7 +43,7 @@ interface ReplicateCompletionOptions {
 export class ReplicateProvider implements ApiProvider {
   modelName: string;
   apiKey: string;
-  replicate: any;
+  replicate: Replicate;
   config: ReplicateCompletionOptions;
 
   constructor(
@@ -62,6 +62,15 @@ export class ReplicateProvider implements ApiProvider {
     this.apiKey = apiKey;
     this.config = config || {};
     this.id = id ? () => id : this.id;
+    this.replicate = new Replicate({
+      auth: this.apiKey,
+      // Add a custom fetch function to include the Prefer header
+      fetch: (input: RequestInfo | URL, init?: RequestInit) => {
+        const headers = new Headers(init?.headers);
+        headers.set('Prefer', 'wait=60');
+        return globalThis.fetch(input, { ...init, headers });
+      },
+    });
   }
 
   id(): string {
@@ -72,7 +81,11 @@ export class ReplicateProvider implements ApiProvider {
     return `[Replicate Provider ${this.modelName}]`;
   }
 
-  async callApi(prompt: string): Promise<ProviderResponse> {
+  async callApi(
+    prompt: string,
+    context?: CallApiContextParams,
+    options?: CallApiOptionsParams,
+  ): Promise<ProviderResponse> {
     if (!this.apiKey) {
       throw new Error(
         'Replicate API key is not set. Set the REPLICATE_API_TOKEN environment variable or or add `apiKey` to the provider config.',
@@ -101,11 +114,6 @@ export class ReplicateProvider implements ApiProvider {
       }
     }
 
-    const replicate = new Replicate({
-      auth: this.apiKey,
-      fetch: fetch as any,
-    });
-
     const messages = parseChatPrompt(prompt, [{ role: 'user', content: prompt }]);
     const systemPrompt =
       messages.find((message) => message.role === 'system')?.content ||
@@ -114,60 +122,31 @@ export class ReplicateProvider implements ApiProvider {
     const userPrompt = messages.find((message) => message.role === 'user')?.content || prompt;
 
     logger.debug(`Calling Replicate: ${prompt}`);
-    let response;
     try {
-      const inputOptions = {
-        max_length: this.config.max_length || getEnvInt('REPLICATE_MAX_LENGTH'),
-        max_new_tokens: this.config.max_new_tokens || getEnvInt('REPLICATE_MAX_NEW_TOKENS'),
-        temperature: this.config.temperature || getEnvFloat('REPLICATE_TEMPERATURE'),
-        top_p: this.config.top_p || getEnvFloat('REPLICATE_TOP_P'),
-        top_k: this.config.top_k || getEnvInt('REPLICATE_TOP_K'),
-        repetition_penalty:
-          this.config.repetition_penalty || getEnvFloat('REPLICATE_REPETITION_PENALTY'),
-        stop_sequences: this.config.stop_sequences || getEnvString('REPLICATE_STOP_SEQUENCES'),
-        seed: this.config.seed || getEnvInt('REPLICATE_SEED'),
-        system_prompt: systemPrompt,
-        prompt: userPrompt,
-      };
+      const output = await this.replicate.run(this.modelName as `${string}/${string}`, {
+        input: { prompt, ...this.config },
+      });
 
-      const data = {
-        input: {
-          ...this.config,
-          ...Object.fromEntries(Object.entries(inputOptions).filter(([_, v]) => v !== undefined)),
-        },
-      };
-      response = await replicate.run(this.modelName as any, data);
+      // Handle the synchronous response
+      if (Array.isArray(output) && output.length > 0) {
+        return {
+          output: output.join(''),
+          tokenUsage: {}, // Replicate doesn't provide token usage info
+        };
+      } else if (typeof output === 'string') {
+        return {
+          output,
+          tokenUsage: {},
+        };
+      } else {
+        return {
+          output: JSON.stringify(output),
+          tokenUsage: {},
+        };
+      }
     } catch (err) {
       return {
         error: `API call error: ${String(err)}`,
-      };
-    }
-    logger.debug(`\tReplicate API response: ${JSON.stringify(response)}`);
-    try {
-      let formattedOutput;
-      if (Array.isArray(response)) {
-        if (response.length === 0 || typeof response[0] === 'string') {
-          formattedOutput = response.join('');
-        } else {
-          formattedOutput = JSON.stringify(response);
-        }
-      } else if (typeof response === 'string') {
-        formattedOutput = response;
-      } else {
-        formattedOutput = JSON.stringify(response);
-      }
-
-      const result = {
-        output: formattedOutput,
-        tokenUsage: {}, // TODO: add token usage once Replicate API supports it
-      };
-      if (cache && cacheKey) {
-        await cache.set(cacheKey, JSON.stringify(result));
-      }
-      return result;
-    } catch (err) {
-      return {
-        error: `API response error: ${String(err)}: ${JSON.stringify(response)}`,
       };
     }
   }

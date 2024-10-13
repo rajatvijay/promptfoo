@@ -10,6 +10,7 @@ import Slider from '@mui/material/Slider';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { useStore as useResultsViewStore } from './store';
+import { useState } from 'react';
 
 interface SettingsModalProps {
   open: boolean;
@@ -33,6 +34,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
     showPassFail,
     setShowPassFail,
   } = useResultsViewStore();
+  const [maxTextLengthState, setMaxTextLengthState] = useState(1000);
+
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle>Table View Settings</DialogTitle>
@@ -121,13 +124,30 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
           </Tooltip>
         </Box>
         <Box maxWidth="sm">
-          <Typography mt={2}>Max text length: {maxTextLength}</Typography>
-          <Slider
-            min={25}
-            max={1000}
-            value={maxTextLength}
-            onChange={(_, val: number | number[]) => setMaxTextLength(val as number)}
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={maxTextLengthState !== Infinity}
+                onChange={(e) => setMaxTextLengthState(e.target.checked ? 1000 : Infinity)}
+              />
+            }
+            label="Limit text length"
           />
+          {maxTextLengthState !== Infinity && (
+            <>
+              <Typography mt={2}>Max text length: {maxTextLengthState}</Typography>
+              <Slider
+                min={25}
+                max={1000}
+                value={maxTextLengthState}
+                onChange={(_, val: number | number[]) => setMaxTextLengthState(val as number)}
+                disabled={maxTextLengthState === Infinity}
+              />
+            </>
+          )}
+          {maxTextLengthState === Infinity && (
+            <Typography mt={2}>Text length: Unlimited</Typography>
+          )}
         </Box>
       </DialogContent>
       <DialogActions>

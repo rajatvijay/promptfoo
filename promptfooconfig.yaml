@@ -1,0 +1,20 @@
+prompts:
+  - a cat
+  - a dog
+  - a bird
+
+providers:
+  - id: replicate:black-forest-labs/flux-schnell
+    config:
+      go_fast: true
+      megapixels: "1"
+      num_outputs: 1
+      aspect_ratio: "1:1"
+      output_format: "webp"
+      output_quality: 80
+      num_inference_steps: 4
+
+defaultTest:
+  options:
+    transform: |
+      return `![Generated image](${output.trim()})`;
