@@ -16,6 +16,7 @@ import type {
 } from '../types';
 import { safeJsonStringify } from '../util/json';
 import { parseChatPrompt } from './shared';
+import invariant from 'tiny-invariant';
 
 interface ReplicateCompletionOptions {
   apiKey?: string;
@@ -41,7 +42,7 @@ interface ReplicateCompletionOptions {
 
 export class ReplicateProvider implements ApiProvider {
   modelName: string;
-  apiKey?: string;
+  apiKey: string;
   replicate: any;
   config: ReplicateCompletionOptions;
 
@@ -51,12 +52,14 @@ export class ReplicateProvider implements ApiProvider {
   ) {
     const { config, id, env } = options;
     this.modelName = modelName;
-    this.apiKey =
+    const apiKey =
       config?.apiKey ||
       env?.REPLICATE_API_KEY ||
       env?.REPLICATE_API_TOKEN ||
       getEnvString('REPLICATE_API_TOKEN') ||
       getEnvString('REPLICATE_API_KEY');
+    invariant(apiKey, 'Replicate API key is not set');
+    this.apiKey = apiKey;
     this.config = config || {};
     this.id = id ? () => id : this.id;
   }
