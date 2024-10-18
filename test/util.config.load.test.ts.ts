@@ -475,6 +475,62 @@ describe('combineConfigs', () => {
     );
     consoleSpy.mockRestore();
   });
+
+  it('should only set redteam config when at least one individual config has redteam settings', async () => {
+    jest
+      .mocked(fs.readFileSync)
+      .mockReturnValueOnce(
+        JSON.stringify({
+          description: 'Config without redteam',
+          providers: ['provider1'],
+        }),
+      )
+      .mockReturnValueOnce(
+        JSON.stringify({
+          description: 'Config with redteam',
+          providers: ['provider2'],
+          redteam: {
+            plugins: ['plugin1'],
+            strategies: ['strategy1'],
+          },
+        }),
+      )
+      .mockReturnValueOnce(
+        JSON.stringify({
+          description: 'Another config without redteam',
+          providers: ['provider3'],
+        }),
+      );
+
+    const result = await combineConfigs(['config1.json', 'config2.json', 'config3.json']);
+
+    expect(result.redteam).toBeDefined();
+    expect(result.redteam).toEqual({
+      plugins: ['plugin1'],
+      strategies: ['strategy1'],
+    });
+  });
+
+  it('should not set redteam config when no individual configs have redteam settings', async () => {
+    jest
+      .mocked(fs.readFileSync)
+      .mockReturnValueOnce(
+        JSON.stringify({
+          description: 'Config without redteam',
+          providers: ['provider1'],
+        }),
+      )
+      .mockReturnValueOnce(
+        JSON.stringify({
+          description: 'Another config without redteam',
+          providers: ['provider2'],
+        }),
+      );
+
+    const result = await combineConfigs(['config1.json', 'config2.json']);
+
+    expect(result.redteam).toBeUndefined();
+  });
 });
 
 describe('dereferenceConfig', () => {
@@ -757,6 +813,36 @@ describe('resolveConfigs', () => {
         providerPromptMap: {},
       }),
     );
+  });
+
+  it('should not use default config when configs are provided', async () => {
+    const cmdObj = { config: ['config.json'] };
+    const defaultConfig = {
+      prompts: ['default prompt'],
+      defaultTest: {
+        vars: {
+          defaultVar: 'default value',
+        },
+      },
+      redteam: {
+        strategies: ['default strategy'],
+      },
+    };
+
+    jest.mocked(readConfig).mockResolvedValue({
+      prompts: ['config prompt'],
+      providers: ['openai:gpt-4'],
+    });
+
+    jest.mocked(globSync).mockReturnValue(['config.json']);
+
+    const { config } = await resolveConfigs(cmdObj, defaultConfig);
+
+    expect(config.prompts).toEqual(['config prompt']);
+    expect(config.providers).toEqual(['openai:gpt-4']);
+    expect(config.prompts).not.toEqual(defaultConfig.prompts);
+    expect(config.redteam).toBeUndefined();
+    expect(config.defaultTest).toBeUndefined();
   });
 });
 

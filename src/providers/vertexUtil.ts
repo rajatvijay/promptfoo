@@ -102,6 +102,14 @@ export function maybeCoerceToGeminiFormat(contents: any) {
       },
     };
     coerced = true;
+  } else if (typeof contents === 'string') {
+    contents = {
+      role: 'user',
+      parts: {
+        text: contents,
+      },
+    };
+    coerced = true;
   }
   return { contents, coerced };
 }

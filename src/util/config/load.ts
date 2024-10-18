@@ -268,13 +268,15 @@ export async function combineConfigs(configPaths: string[]): Promise<UnifiedConf
     );
   }
 
-  const redteam: UnifiedConfig['redteam'] = {
-    plugins: [],
-    strategies: [],
-  };
-
+  let redteam: UnifiedConfig['redteam'] | undefined;
   for (const config of configs) {
     if (config.redteam) {
+      if (!redteam) {
+        redteam = {
+          plugins: [],
+          strategies: [],
+        };
+      }
       for (const redteamKey of Object.keys(config.redteam) as Array<keyof typeof redteam>) {
         if (['entities', 'plugins', 'strategies'].includes(redteamKey)) {
           if (Array.isArray(config.redteam[redteamKey])) {
@@ -404,13 +406,15 @@ export async function combineConfigs(configPaths: string[]): Promise<UnifiedConf
 
 export async function resolveConfigs(
   cmdObj: Partial<CommandLineOptions>,
-  defaultConfig: Partial<UnifiedConfig>,
+  _defaultConfig: Partial<UnifiedConfig>,
 ): Promise<{ testSuite: TestSuite; config: Partial<UnifiedConfig>; basePath: string }> {
-  // Config parsing
   let fileConfig: Partial<UnifiedConfig> = {};
+  let defaultConfig = _defaultConfig;
   const configPaths = cmdObj.config;
   if (configPaths) {
     fileConfig = await combineConfigs(configPaths);
+    // The user has provided a config file, so we do not want to use the default config.
+    defaultConfig = {};
   }
 
   // Standalone assertion mode

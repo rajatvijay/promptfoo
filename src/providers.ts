@@ -52,6 +52,7 @@ import {
   OpenAiImageProvider,
   OpenAiModerationProvider,
 } from './providers/openai';
+import { parsePackageProvider } from './providers/packageParser';
 import { PalmChatProvider } from './providers/palm';
 import { PortkeyChatCompletionProvider } from './providers/portkey';
 import { PythonProvider } from './providers/pythonCompletion';
@@ -63,6 +64,7 @@ import {
 import { ScriptCompletionProvider } from './providers/scriptCompletion';
 import { VertexChatProvider, VertexEmbeddingProvider } from './providers/vertex';
 import { VoyageEmbeddingProvider } from './providers/voyage';
+import { WatsonXProvider } from './providers/watsonx';
 import { WebhookProvider } from './providers/webhook';
 import { WebSocketProvider } from './providers/websocket';
 import RedteamCrescendoProvider from './redteam/providers/crescendo';
@@ -199,6 +201,17 @@ export async function loadApiProvider(
         apiKeyEnvar: 'OPENROUTER_API_KEY',
       },
     });
+  } else if (providerPath.startsWith('github:')) {
+    const splits = providerPath.split(':');
+    const modelName = splits.slice(1).join(':');
+    ret = new OpenAiChatCompletionProvider(modelName, {
+      ...providerOptions,
+      config: {
+        ...providerOptions.config,
+        apiBaseUrl: 'https://models.inference.ai.azure.com',
+        apiKeyEnvar: 'GITHUB_TOKEN',
+      },
+    });
   } else if (providerPath.startsWith('portkey:')) {
     const splits = providerPath.split(':');
     const modelName = splits.slice(1).join(':');
@@ -221,6 +234,10 @@ export async function loadApiProvider(
     }
   } else if (providerPath.startsWith('voyage:')) {
     ret = new VoyageEmbeddingProvider(providerPath.split(':')[1], providerOptions);
+  } else if (providerPath.startsWith('watsonx:')) {
+    const splits = providerPath.split(':');
+    const modelName = splits.slice(1).join(':');
+    ret = new WatsonXProvider(modelName, providerOptions);
   } else if (providerPath.startsWith('bedrock:')) {
     const splits = providerPath.split(':');
     const modelType = splits[1];
@@ -439,6 +456,8 @@ export async function loadApiProvider(
       ? providerPath.slice('file://'.length)
       : providerPath.split(':').slice(1).join(':');
     ret = new GolangProvider(scriptPath, providerOptions);
+  } else if (providerPath.startsWith('package:')) {
+    ret = await parsePackageProvider(providerPath, basePath || process.cwd(), providerOptions);
   } else if (isJavascriptFile(providerPath)) {
     if (providerPath.startsWith('file://')) {
       providerPath = providerPath.slice('file://'.length);
@@ -568,4 +587,5 @@ export default {
   WebhookProvider,
   WebSocketProvider,
   loadApiProvider,
+  WatsonXProvider,
 };
