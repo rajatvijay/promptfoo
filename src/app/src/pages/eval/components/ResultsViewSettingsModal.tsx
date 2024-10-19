@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Checkbox from '@mui/material/Checkbox';
@@ -10,7 +11,6 @@ import Slider from '@mui/material/Slider';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { useStore as useResultsViewStore } from './store';
-import { useState } from 'react';
 
 interface SettingsModalProps {
   open: boolean;
@@ -19,8 +19,6 @@ interface SettingsModalProps {
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
   const {
-    maxTextLength,
-    setMaxTextLength,
     wordBreak,
     setWordBreak,
     showInferenceDetails,

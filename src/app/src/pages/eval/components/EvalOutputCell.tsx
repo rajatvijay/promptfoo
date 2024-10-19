@@ -141,7 +141,6 @@ function EvalOutputCell({
       </>
     );
   }
-
   if (searchText) {
     // Highlight search matches
     try {
@@ -181,6 +180,15 @@ function EvalOutputCell({
     } catch (error) {
       console.error('Invalid regular expression:', (error as Error).message);
     }
+  } else if (text.match(/^data:(image\/[a-z]+|application\/octet-stream);base64,/)) {
+    node = (
+      <img
+        src={text}
+        alt={output.prompt}
+        style={{ width: '100%' }}
+        onClick={() => toggleLightbox(text)}
+      />
+    );
   } else if (renderMarkdown && !showDiffs) {
     node = (
       <ReactMarkdown
@@ -486,9 +494,7 @@ function EvalOutputCell({
         </div>
       )}
       {renderMarkdown ? (
-        <>
-          {node || text}
-        </>
+        <>{node || text}</>
       ) : (
         <TruncatedText text={node || text} maxLength={maxTextLength} />
       )}
