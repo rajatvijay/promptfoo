@@ -4,7 +4,6 @@ import { useShiftKey } from '@app/hooks/useShiftKey';
 import Tooltip from '@mui/material/Tooltip';
 import type { EvaluateTableOutput } from '@promptfoo/types';
 import { diffSentences, diffJson, diffWords } from 'diff';
-import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
 import CustomMetrics from './CustomMetrics';
 import EvalOutputPromptDialog from './EvalOutputPromptDialog';
@@ -193,7 +192,6 @@ function EvalOutputCell({
     node = (
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeRaw]}
         components={{
           img: ({ src, alt }) => (
             <img
@@ -216,8 +214,6 @@ function EvalOutputCell({
       // Ignore because it's probably not JSON.
     }
   }
-
-  console.info(String(text).length);
 
   const handleRating = React.useCallback(
     (isPass: boolean) => {
@@ -493,11 +489,7 @@ function EvalOutputCell({
           {output.prompt}
         </div>
       )}
-      {renderMarkdown ? (
-        <>{node || text}</>
-      ) : (
-        <TruncatedText text={node || text} maxLength={maxTextLength} />
-      )}
+      <TruncatedText text={node || text} maxLength={maxTextLength} />
       {comment}
       {detail}
       {actions}

@@ -68,7 +68,6 @@ function TruncatedText({ text: rawText, maxLength }: TruncatedTextProps) {
   const truncatedText = isTruncated ? truncateText(text) : text;
 
   const isOverLength = textLength(text) > maxLength;
-  console.info(textLength(text), maxLength);
   return (
     <div
       style={{ cursor: isOverLength ? 'pointer' : 'normal' }}
