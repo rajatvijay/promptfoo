@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Checkbox from '@mui/material/Checkbox';
@@ -19,6 +18,8 @@ interface SettingsModalProps {
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
   const {
+    maxTextLength,
+    setMaxTextLength,
     wordBreak,
     setWordBreak,
     showInferenceDetails,
@@ -32,8 +33,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
     showPassFail,
     setShowPassFail,
   } = useResultsViewStore();
-  const [maxTextLengthState, setMaxTextLengthState] = useState(1000);
-
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle>Table View Settings</DialogTitle>
@@ -122,30 +121,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
           </Tooltip>
         </Box>
         <Box maxWidth="sm">
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={maxTextLengthState !== Infinity}
-                onChange={(e) => setMaxTextLengthState(e.target.checked ? 1000 : Infinity)}
-              />
+          <Typography mt={2}>Max text length: {maxTextLength}</Typography>
+          <Slider
+            min={25}
+            max={1001}
+            value={maxTextLength}
+            onChange={(_, val: number | number[]) =>
+              setMaxTextLength(val === 1001 ? Number.POSITIVE_INFINITY : (val as number))
             }
-            label="Limit text length"
           />
-          {maxTextLengthState !== Infinity && (
-            <>
-              <Typography mt={2}>Max text length: {maxTextLengthState}</Typography>
-              <Slider
-                min={25}
-                max={1000}
-                value={maxTextLengthState}
-                onChange={(_, val: number | number[]) => setMaxTextLengthState(val as number)}
-                disabled={maxTextLengthState === Infinity}
-              />
-            </>
-          )}
-          {maxTextLengthState === Infinity && (
-            <Typography mt={2}>Text length: Unlimited</Typography>
-          )}
         </Box>
       </DialogContent>
       <DialogActions>
