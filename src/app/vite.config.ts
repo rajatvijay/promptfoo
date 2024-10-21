@@ -30,6 +30,7 @@ export default defineConfig({
     alias: {
       '@app': path.resolve(__dirname, './src'),
       '@promptfoo': path.resolve(__dirname, '../'),
+      '@server': path.resolve(__dirname, '../server'),
     },
   },
   build: {

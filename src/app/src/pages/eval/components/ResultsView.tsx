@@ -46,6 +46,7 @@ import ShareModal from './ShareModal';
 import { useStore as useResultsViewStore } from './store';
 import type { EvaluateTable, FilterMode, ResultLightweightWithLabel } from './types';
 import './ResultsView.css';
+import { useGlobalStore } from '@app/stores/globalStore';
 
 const ResponsiveStack = styled(Stack)(({ theme }) => ({
   maxWidth: '100%',
@@ -84,6 +85,7 @@ export default function ResultsView({
     setAuthor,
   } = useResultsViewStore();
   const { setStateFromConfig } = useMainStore();
+  const { userEmail, initializeUserEmail } = useGlobalStore();
 
   const [searchText, setSearchText] = React.useState(searchParams.get('search') || '');
   const [debouncedSearchText] = useDebounce(searchText, 1000);
@@ -362,6 +364,10 @@ export default function ResultsView({
       }
     }
   };
+
+  React.useEffect(() => {
+    initializeUserEmail();
+  }, [initializeUserEmail]);
 
   return (
     <div style={{ marginLeft: '1rem', marginRight: '1rem' }}>

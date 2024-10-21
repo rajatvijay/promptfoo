@@ -11,32 +11,32 @@ import Popover from '@mui/material/Popover';
 import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
+import { useGlobalStore } from '@app/stores/globalStore';
 
 interface AuthorChipProps {
   author: string | null;
   onEditAuthor: (newAuthor: string) => Promise<void>;
-  currentUserEmail: string | null;
 }
 
 export const AuthorChip: React.FC<AuthorChipProps> = ({
   author,
   onEditAuthor,
-  currentUserEmail,
 }) => {
+  const { userEmail } = useGlobalStore();
   const [isLoading, setIsLoading] = useState(false);
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [email, setEmail] = useState(author || '');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!author && currentUserEmail) {
-      setEmail(currentUserEmail);
+    if (!author && userEmail) {
+      setEmail(userEmail);
     }
-  }, [author, currentUserEmail]);
+  }, [author, userEmail]);
 
   const handleClick = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
-    setEmail(author || currentUserEmail || '');
+    setEmail(author || userEmail || '');
     setError(null);
   };
 
@@ -128,7 +128,7 @@ export const AuthorChip: React.FC<AuthorChipProps> = ({
               {isLoading ? <CircularProgress size={24} /> : 'Save'}
             </Button>
           </Box>
-          {!currentUserEmail && (
+          {!userEmail && (
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
               <InfoIcon color="info" fontSize="small" sx={{ mr: 1 }} />
               <Typography variant="caption">
