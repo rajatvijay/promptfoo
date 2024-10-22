@@ -44,6 +44,8 @@ export function getCache() {
 export type FetchWithCacheResult<T> = {
   data: T;
   cached: boolean;
+  statusCode: number;
+  statusText: string;
 };
 
 export async function fetchWithCache<T = any>(
@@ -60,6 +62,8 @@ export async function fetchWithCache<T = any>(
       return {
         cached: false,
         data: format === 'json' ? JSON.parse(respText) : respText,
+        statusCode: resp.status,
+        statusText: resp.statusText,
       };
     } catch {
       throw new Error(`Error parsing response as JSON: ${respText}`);
@@ -70,7 +74,7 @@ export async function fetchWithCache<T = any>(
 
   const copy = Object.assign({}, options);
   delete copy.headers;
-  const cacheKey = `fetch:${url}:${JSON.stringify(copy)}`;
+  const cacheKey = `fetch:v2:${url}:${JSON.stringify(copy)}`;
 
   let cached = true;
   let errorResponse = null;
@@ -82,24 +86,30 @@ export async function fetchWithCache<T = any>(
     const response = await fetchWithRetries(url, options, timeout);
     const responseText = await response.text();
     try {
-      const data = JSON.stringify(format === 'json' ? JSON.parse(responseText) : responseText);
+      const responseData = JSON.stringify(
+        format === 'json' ? JSON.parse(responseText) : responseText,
+      );
       if (!response.ok) {
         if (responseText == '') {
           errorResponse = JSON.stringify(
             `Empty Response: ${response.status}: ${response.statusText}`,
           );
         } else {
-          errorResponse = data;
+          errorResponse = responseData;
         }
         // Don't cache error responses
         return;
       }
-      if (!data) {
+      if (!responseData) {
         // Don't cache empty responses
         return;
       }
-      logger.debug(`Storing ${url} response in cache: ${data}`);
-      return data;
+      logger.debug(`Storing ${url} response in cache: ${responseData}`);
+      return {
+        statusCode: response.status,
+        statusText: response.statusText,
+        responseData,
+      };
     } catch (err) {
       throw new Error(
         `Error parsing response from ${url}: ${
@@ -115,7 +125,9 @@ export async function fetchWithCache<T = any>(
 
   return {
     cached,
-    data: JSON.parse((cachedResponse ?? errorResponse) as string) as T,
+    data: JSON.parse((cachedResponse?.responseData ?? errorResponse) as string) as T,
+    statusCode: cachedResponse.statusCode,
+    statusText: cachedResponse.statusText,
   };
 }
 

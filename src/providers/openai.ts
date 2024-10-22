@@ -541,10 +541,13 @@ export class OpenAiChatCompletionProvider extends OpenAiGenericProvider {
       ...(this.config.stop ? { stop: this.config.stop } : {}),
       ...(this.config.passthrough || {}),
     };
-    let data;
-    let cached = false;
+    logger.debug(`Calling OpenAI API: ${JSON.stringify(body)}`);
+
+    let data,
+      cached = false;
+    let statusCode, statusText;
     try {
-      ({ data, cached } = (await fetchWithCache(
+      ({ data, cached, statusCode, statusText } = (await fetchWithCache(
         `${this.getApiUrl()}/chat/completions`,
         {
           method: 'POST',
@@ -569,6 +572,11 @@ export class OpenAiChatCompletionProvider extends OpenAiGenericProvider {
     if (data.error) {
       return {
         error: formatOpenAiError(data),
+      };
+    }
+    if (statusCode !== 200) {
+      return {
+        error: `OpenAI API error: ${statusCode} ${statusText}`,
       };
     }
     try {
